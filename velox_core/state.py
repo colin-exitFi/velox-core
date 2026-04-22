@@ -89,6 +89,19 @@ CREATE TABLE IF NOT EXISTS audit (
     event TEXT NOT NULL,
     detail TEXT
 );
+
+CREATE TABLE IF NOT EXISTS market_briefs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    session_id INTEGER,
+    timestamp REAL NOT NULL,
+    session_label TEXT,
+    text TEXT NOT NULL,
+    citations TEXT,               -- JSON array of citation URLs
+    error TEXT,
+    FOREIGN KEY (session_id) REFERENCES sessions(id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_briefs_timestamp ON market_briefs(timestamp);
 """
 
 
@@ -356,6 +369,60 @@ def recent_audit(limit: int = 50) -> List[Dict]:
             "SELECT * FROM audit ORDER BY timestamp DESC LIMIT ?", (limit,)
         ).fetchall()
         return [dict(r) for r in rows]
+
+
+# ── Market briefs ──────────────────────────────────────────────────
+
+
+def record_market_brief(
+    session_id: Optional[int],
+    session_label: str,
+    text: str,
+    citations: Optional[List[str]] = None,
+    error: str = "",
+) -> int:
+    with _conn() as c:
+        cur = c.execute(
+            """INSERT INTO market_briefs
+               (session_id, timestamp, session_label, text, citations, error)
+               VALUES (?,?,?,?,?,?)""",
+            (
+                session_id, time.time(), session_label, text,
+                json.dumps(citations or []), error,
+            ),
+        )
+        return cur.lastrowid
+
+
+def latest_market_brief() -> Optional[Dict]:
+    with _conn() as c:
+        row = c.execute(
+            "SELECT * FROM market_briefs ORDER BY timestamp DESC LIMIT 1"
+        ).fetchone()
+        if not row:
+            return None
+        d = dict(row)
+        try:
+            d["citations"] = json.loads(d.get("citations") or "[]")
+        except Exception:
+            d["citations"] = []
+        return d
+
+
+def recent_market_briefs(limit: int = 10) -> List[Dict]:
+    with _conn() as c:
+        rows = c.execute(
+            "SELECT * FROM market_briefs ORDER BY timestamp DESC LIMIT ?", (limit,)
+        ).fetchall()
+    out = []
+    for r in rows:
+        d = dict(r)
+        try:
+            d["citations"] = json.loads(d.get("citations") or "[]")
+        except Exception:
+            d["citations"] = []
+        out.append(d)
+    return out
 
 
 # ── Equity history (JSON for fast charting) ────────────────────────

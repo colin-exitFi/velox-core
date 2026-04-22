@@ -45,8 +45,15 @@ ALPACA_DATA_URL = "https://data.alpaca.markets"
 # ── AI providers ───────────────────────────────────────────────────
 ANTHROPIC_API_KEY = _str("ANTHROPIC_API_KEY")
 OPENAI_API_KEY = _str("OPENAI_API_KEY")
-ANTHROPIC_MODEL = _str("ANTHROPIC_MODEL", "claude-sonnet-4-5-20250929")
-OPENAI_MODEL = _str("OPENAI_MODEL", "gpt-5.4-mini")
+PERPLEXITY_API_KEY = _str("PERPLEXITY_API_KEY")
+# Defaults updated 2026-04-22 to current top-tier models.
+# Claude Opus 4.7 + GPT-5.4 are the "voters" in the consensus.
+# Perplexity sonar-pro is the "context layer" — runs once per session, injects
+# a real-time market brief into both voters' prompts.
+ANTHROPIC_MODEL = _str("ANTHROPIC_MODEL", "claude-opus-4-7")
+OPENAI_MODEL = _str("OPENAI_MODEL", "gpt-5.4")
+PERPLEXITY_MODEL = _str("PERPLEXITY_MODEL", "sonar-pro")
+MARKET_BRIEF_ENABLED = _bool("MARKET_BRIEF_ENABLED", bool(PERPLEXITY_API_KEY))
 
 # ── Trading ────────────────────────────────────────────────────────
 POSITION_SIZE_PCT = _float("POSITION_SIZE_PCT", 4.0)

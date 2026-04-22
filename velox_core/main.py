@@ -20,7 +20,7 @@ from typing import Dict, List, Optional, Tuple
 import pytz
 from loguru import logger
 
-from velox_core import broker, config, consensus, ratchet, state
+from velox_core import broker, config, consensus, market_brief, ratchet, state
 from velox_core.universe import UNIVERSE
 
 
@@ -101,12 +101,24 @@ async def run_session(label: str):
         f"snapshots={len(snaps)}"
     )
 
+    # 1. Pull market context from Perplexity FIRST so both voters see the same world.
+    brief = await market_brief.get_market_brief(UNIVERSE, label)
+    state.record_market_brief(
+        session_id=session_id,
+        session_label=label,
+        text=brief.text,
+        citations=brief.citations,
+        error=brief.error,
+    )
+
+    # 2. Two voters now decide with context.
     votes_by_symbol = await consensus.run_consensus(
         snapshots=snaps,
         open_positions=open_symbols,
         session_label=label,
         equity=equity,
         max_positions=config.MAX_CONCURRENT_POSITIONS,
+        market_brief=brief.text,
     )
 
     opened = 0

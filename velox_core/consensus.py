@@ -37,6 +37,10 @@ OPEN POSITIONS: {open_positions}
 
 The bot already holds these positions ({n_open} total): {position_list}
 
+═══ MARKET BRIEF (from Perplexity, fresh this session) ═══
+{market_brief}
+═══════════════════════════════════════════════════════════
+
 Universe snapshot (price, change today, volume vs prev day):
 {universe_table}
 
@@ -47,17 +51,20 @@ For EACH symbol return one of:
   EXIT   — close an existing position now (only for symbols already held)
 
 CRITICAL RULES:
+- The Market Brief above is your only window into news, catalysts, and macro. Use it.
+- A symbol named in the brief with a real catalyst should weight harder than pure technicals.
+- A symbol with no catalyst can still be a setup — but reasoning should reference the technicals.
 - If symbol is in OPEN POSITIONS, EXIT means close it. BUY/SHORT means hold/scale.
 - Confidence is your conviction 0-100. Below 60 means do not trade.
 - Reason is one short sentence (max 80 chars). State the actual setup, not generic platitudes.
-- We trade the consensus only — your vote alone does not fire a trade. The other model gets the same data.
+- We trade the consensus only — your vote alone does not fire a trade. The other model gets the same brief and snapshot.
 - Cost protection: profit ratchet handles all exits intraday. Don't EXIT for fear-based reasons; only exit on real thesis change.
 - Capital is finite: bot will not enter more than {max_positions} concurrent positions. Quality over quantity.
 
 Return ONLY valid JSON in this exact shape (no markdown fences, no explanation):
 {{"votes": [
   {{"symbol": "AAPL", "action": "HOLD", "confidence": 50, "reason": "no clear setup, mid-range"}},
-  {{"symbol": "NVDA", "action": "BUY", "confidence": 72, "reason": "above VWAP, vol surge, AI tape strong"}}
+  {{"symbol": "NVDA", "action": "BUY", "confidence": 72, "reason": "above VWAP, vol surge, GTC keynote 2pm per brief"}}
 ]}}
 
 You MUST return one entry per symbol in the universe ({n} entries total). Order doesn't matter."""
@@ -224,6 +231,7 @@ async def run_consensus(
     session_label: str,
     equity: float,
     max_positions: int,
+    market_brief: str = "",
 ) -> Dict[str, Dict]:
     """Call both models, return per-symbol consensus dict.
 
@@ -250,6 +258,7 @@ async def run_consensus(
         position_list=", ".join(open_positions) or "none",
         universe_table=universe_table,
         max_positions=max_positions,
+        market_brief=market_brief.strip() or "(no brief available; vote on technicals only)",
     )
 
     claude_payload, gpt_payload = await asyncio.gather(

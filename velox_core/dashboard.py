@@ -148,6 +148,22 @@ async def api_audit(request: Request, limit: int = 50):
     return state.recent_audit(limit=min(500, max(1, limit)))
 
 
+@app.get("/api/market-brief")
+async def api_market_brief(request: Request):
+    _check_token(request)
+    brief = state.latest_market_brief()
+    if not brief:
+        return {"available": False}
+    return {
+        "available": True,
+        "timestamp": brief["timestamp"],
+        "session_label": brief.get("session_label", ""),
+        "text": brief["text"],
+        "citations": brief.get("citations", []),
+        "error": brief.get("error", ""),
+    }
+
+
 # ── The single HTML page ───────────────────────────────────────────
 
 
@@ -347,6 +363,60 @@ HTML = """<!DOCTYPE html>
     font-family: var(--sans);
   }
   .section { margin-bottom: 88px; }
+
+  /* ─── Market brief ──────────────────────────────────────────── */
+  .brief-card {
+    background: var(--panel);
+    border: 1px solid var(--hairline);
+    border-left: 2px solid var(--gold);
+    border-radius: 2px;
+    padding: 28px 32px;
+  }
+  .brief-text {
+    font-family: var(--serif);
+    font-weight: 300;
+    font-size: 15.5px;
+    line-height: 1.7;
+    color: var(--ink);
+    letter-spacing: -0.005em;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+  }
+  .brief-text strong {
+    color: var(--gold);
+    font-weight: 500;
+  }
+  .brief-text em { color: var(--ink-soft); font-style: italic; }
+  .brief-text ul, .brief-text ol { padding-left: 22px; margin: 8px 0; }
+  .brief-text li { margin-bottom: 6px; }
+  .brief-text p { margin: 10px 0; }
+  .brief-text h1, .brief-text h2, .brief-text h3, .brief-text h4 {
+    font-family: var(--serif);
+    font-weight: 500;
+    font-size: 13px;
+    color: var(--gold);
+    text-transform: uppercase;
+    letter-spacing: var(--tracking-mid);
+    margin: 18px 0 8px;
+  }
+  .brief-citations {
+    margin-top: 22px;
+    padding-top: 18px;
+    border-top: 1px solid var(--hairline);
+    font-family: var(--sans);
+    font-size: 11px;
+    color: var(--ink-mute);
+    text-transform: uppercase;
+    letter-spacing: var(--tracking-mid);
+  }
+  .brief-citations a {
+    color: var(--ink-soft);
+    text-decoration: none;
+    margin-right: 18px;
+    border-bottom: 1px solid var(--hairline-strong);
+    transition: color 200ms ease;
+  }
+  .brief-citations a:hover { color: var(--gold); }
 
   /* ─── The chart ─────────────────────────────────────────────── */
   .chart-wrap {
@@ -668,6 +738,19 @@ HTML = """<!DOCTYPE html>
     <div class="sessions-strip" id="sessionsStrip"></div>
   </div>
 
+  <!-- MARKET BRIEF -->
+  <div class="section">
+    <div class="section-head">
+      <span class="dot"></span>
+      <h2>The market brief</h2>
+      <span class="sub" id="briefMeta">awaiting first session</span>
+    </div>
+    <div class="brief-card" id="briefCard">
+      <div class="brief-text skel">Perplexity will publish a fresh brief at the next session — what the tape looks like right now, which of our 40 tickers have material catalysts, what regime tone we're in. Both Claude and GPT see this brief before they vote.</div>
+      <div class="brief-citations" id="briefCitations"></div>
+    </div>
+  </div>
+
   <!-- EQUITY VS SPY -->
   <div class="section">
     <div class="section-head">
@@ -692,8 +775,8 @@ HTML = """<!DOCTYPE html>
       <span class="sub">When each model was on the right side of a trade</span>
     </div>
     <div class="duel" id="duelGrid">
-      <div class="duel-cell"><div class="label">Claude</div><div class="name">Sonnet 4.5</div><div class="pnl">—</div><div class="meta skel">awaiting first session</div></div>
-      <div class="duel-cell"><div class="label">OpenAI</div><div class="name">GPT 5.4-mini</div><div class="pnl">—</div><div class="meta skel">awaiting first session</div></div>
+      <div class="duel-cell"><div class="label">Claude</div><div class="name">Opus 4.7</div><div class="pnl">—</div><div class="meta skel">awaiting first session</div></div>
+      <div class="duel-cell"><div class="label">OpenAI</div><div class="name">GPT 5.4</div><div class="pnl">—</div><div class="meta skel">awaiting first session</div></div>
       <div class="duel-cell consensus"><div class="label">Both agreed</div><div class="name">Consensus</div><div class="pnl">—</div><div class="meta skel">where the real edge lives</div></div>
     </div>
   </div>
@@ -957,9 +1040,13 @@ async function refreshScoreboard() {
       <div class="meta"><strong>${s.trades}</strong> trades · <strong>${s.wins}</strong> wins · ${s.win_rate.toFixed(0)}% rate</div>
     </div>`;
   };
+  // Pull display names from the configured models so the duel cards stay honest.
+  const status = await api('/api/status');
+  const claudeName = (status.config.anthropic_model||'claude').replace('claude-','').replace(/-/g,' ');
+  const gptName = (status.config.openai_model||'gpt');
   document.getElementById('duelGrid').innerHTML =
-    cell('Claude', 'Sonnet 4.5', sb.claude) +
-    cell('OpenAI', 'GPT 5.4-mini', sb.gpt) +
+    cell('Claude', claudeName, sb.claude) +
+    cell('OpenAI', gptName, sb.gpt) +
     cell('Both agreed', 'Consensus', sb.consensus);
 }
 
@@ -1073,12 +1160,58 @@ async function toggleKill() {
   if (r.ok) refreshAll();
 }
 
+// ── Market brief ───────────────────────────────────────────────
+function renderMarkdown(s) {
+  if (!s) return '';
+  let out = s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  out = out.replace(/\\*\\*(.+?)\\*\\*/g, '<strong>$1</strong>');
+  out = out.replace(/(?<!\\*)\\*([^*\\n]+)\\*(?!\\*)/g, '<em>$1</em>');
+  out = out.replace(/^####?\\s+(.+)$/gm, '<h4>$1</h4>');
+  const lines = out.split('\\n');
+  let html = '';
+  let inList = false;
+  for (const raw of lines) {
+    const m = raw.match(/^\\s*[-•*]\\s+(.+)$/);
+    if (m) {
+      if (!inList) { html += '<ul>'; inList = true; }
+      html += `<li>${m[1]}</li>`;
+    } else {
+      if (inList) { html += '</ul>'; inList = false; }
+      if (raw.trim()) html += `<p>${raw}</p>`;
+    }
+  }
+  if (inList) html += '</ul>';
+  return html;
+}
+
+async function refreshBrief() {
+  try {
+    const b = await api('/api/market-brief');
+    if (!b.available) return;
+    const card = document.getElementById('briefCard');
+    const meta = document.getElementById('briefMeta');
+    const cite = document.getElementById('briefCitations');
+    const ts = b.timestamp ? new Date(b.timestamp*1000) : null;
+    const tsLabel = ts ? `${ts.toLocaleTimeString([], {hour:'numeric', minute:'2-digit'})} · ${b.session_label} session` : '';
+    meta.textContent = tsLabel;
+    card.querySelector('.brief-text').classList.remove('skel');
+    card.querySelector('.brief-text').innerHTML = renderMarkdown(b.text || '');
+    if (b.citations && b.citations.length) {
+      cite.innerHTML = 'Sources · ' + b.citations.slice(0, 6).map((c, i) =>
+        `<a href="${c}" target="_blank" rel="noopener">[${i+1}]</a>`).join('');
+    } else {
+      cite.innerHTML = '';
+    }
+  } catch (e) { console.error('brief', e); }
+}
+
 async function refreshAll() {
   try {
     renderSessions();
     await Promise.all([
       refreshStatus(), refreshEquity(), refreshScoreboard(),
       refreshPositions(), refreshDecisions(), refreshSkips(), refreshTrades(),
+      refreshBrief(),
     ]);
   } catch (e) { console.error(e); }
 }
