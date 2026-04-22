@@ -152,109 +152,610 @@ async def api_audit(request: Request, limit: int = 50):
 
 
 HTML = """<!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
 <meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Velox Core</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght,SOFT@9..144,300;9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@300;400;500&display=swap">
 <style>
-* { box-sizing: border-box; }
-body {
-  font: 14px/1.45 -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  background: #0d1117; color: #c9d1d9; margin: 0; padding: 24px;
-}
-h1, h2 { color: #f0f6fc; margin: 0 0 8px; font-weight: 600; }
-h1 { font-size: 22px; } h2 { font-size: 16px; }
-.muted { color: #8b949e; }
-.positive { color: #3fb950; } .negative { color: #f85149; }
-.row { display: flex; gap: 24px; flex-wrap: wrap; }
-.card {
-  background: #161b22; border: 1px solid #30363d; border-radius: 8px;
-  padding: 18px; margin-bottom: 18px;
-}
-.card.full { width: 100%; }
-.card.half { flex: 1 1 480px; }
-.metric { display: inline-block; margin-right: 32px; vertical-align: top; }
-.metric .v { font-size: 24px; font-weight: 600; color: #f0f6fc; }
-.metric .l { color: #8b949e; font-size: 12px; text-transform: uppercase; letter-spacing: .5px; }
-table { width: 100%; border-collapse: collapse; font-size: 13px; }
-th, td { padding: 8px 6px; text-align: left; border-bottom: 1px solid #21262d; }
-th { color: #8b949e; font-weight: 500; font-size: 11px; text-transform: uppercase; letter-spacing: .5px; }
-.tag {
-  display: inline-block; padding: 2px 8px; border-radius: 3px;
-  font-size: 11px; font-weight: 600;
-}
-.tag.buy { background: rgba(63,185,80,.15); color: #3fb950; }
-.tag.short { background: rgba(248,81,73,.15); color: #f85149; }
-.tag.exit { background: rgba(255,166,87,.15); color: #ffa657; }
-.tag.hold { background: rgba(139,148,158,.15); color: #8b949e; }
-button {
-  background: #f85149; color: #fff; border: none; padding: 10px 18px;
-  border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 13px;
-}
-button.resume { background: #3fb950; }
-button:hover { opacity: .85; }
-.banner {
-  background: rgba(248,81,73,.1); border: 1px solid #f85149;
-  color: #f85149; padding: 10px 14px; border-radius: 6px; margin-bottom: 16px;
-  display: none; font-weight: 600;
-}
-.skip-reason { color: #d29922; font-size: 11px; }
-.subtle { color: #8b949e; font-size: 11px; }
-canvas { max-width: 100%; }
+  /* ─── Velox Core · v1 ──────────────────────────────────────────────
+     Design language: editorial, restrained, warm-paper-on-deep-warmth.
+     Voice: a quarterly letter from a steward of capital, not a casino.
+     Palette: ivory ink on warm graphite. One gold accent. Muted signal.
+  ─────────────────────────────────────────────────────────────────── */
+
+  :root {
+    --bg:        #0a0a0b;          /* deep warm graphite, not GitHub gray */
+    --panel:    #111114;
+    --panel-2:  #16161a;
+    --hairline: rgba(232, 226, 213, 0.08);
+    --hairline-strong: rgba(232, 226, 213, 0.16);
+    --ink:      #ece6d8;           /* warm ivory primary text */
+    --ink-soft: #aaa39a;
+    --ink-mute: #6e6a62;
+    --gold:     #c9a870;
+    --gold-soft: rgba(201, 168, 112, 0.15);
+    --win:      #7fb491;           /* muted forest */
+    --win-soft: rgba(127, 180, 145, 0.12);
+    --loss:     #c47866;           /* warm earth red */
+    --loss-soft: rgba(196, 120, 102, 0.12);
+    --warn:     #d4b07a;
+    --serif: 'Fraunces', 'Hoefler Text', 'Iowan Old Style', 'Apple Garamond', 'Baskerville', Georgia, serif;
+    --sans:  'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    --mono:  'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace;
+    --tracking-loose: 0.18em;
+    --tracking-mid: 0.08em;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background:
+      radial-gradient(ellipse 1200px 600px at 50% -300px, rgba(201,168,112,0.06), transparent 70%),
+      var(--bg);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-weight: 400;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    line-height: 1.55;
+    min-height: 100vh;
+  }
+  ::selection { background: var(--gold-soft); color: var(--ink); }
+
+  .container {
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 56px 40px 80px;
+  }
+
+  /* ─── Top bar ─────────────────────────────────────────────────── */
+  .topbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    font-family: var(--sans);
+    font-size: 11px;
+    color: var(--ink-mute);
+    letter-spacing: var(--tracking-mid);
+    text-transform: uppercase;
+    border-bottom: 1px solid var(--hairline);
+    padding-bottom: 18px;
+    margin-bottom: 64px;
+  }
+  .topbar .left { display: flex; gap: 28px; }
+  .topbar .left .session-now { color: var(--gold); }
+  .topbar .right .clock { color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+
+  /* ─── Hero ────────────────────────────────────────────────────── */
+  .hero {
+    text-align: center;
+    margin-bottom: 88px;
+  }
+  .monogram {
+    font-family: var(--serif);
+    font-weight: 300;
+    font-size: 56px;
+    color: var(--gold);
+    letter-spacing: -0.02em;
+    line-height: 1;
+    margin-bottom: 10px;
+    font-feature-settings: 'ss01' on;
+  }
+  .wordmark {
+    font-family: var(--serif);
+    font-weight: 400;
+    font-size: 13px;
+    color: var(--ink-soft);
+    letter-spacing: var(--tracking-loose);
+    text-transform: uppercase;
+    margin-bottom: 60px;
+  }
+  .hero-equity {
+    font-family: var(--serif);
+    font-weight: 300;
+    font-size: clamp(72px, 11vw, 132px);
+    line-height: 0.95;
+    color: var(--ink);
+    letter-spacing: -0.04em;
+    font-variant-numeric: tabular-nums;
+    margin-bottom: 18px;
+  }
+  .hero-equity .currency { color: var(--ink-mute); font-size: 0.55em; vertical-align: 0.45em; padding-right: 4px; }
+  .hero-equity .cents { color: var(--ink-mute); font-weight: 300; }
+  .hero-meta {
+    display: flex;
+    justify-content: center;
+    gap: 60px;
+    font-family: var(--sans);
+    font-size: 13px;
+    color: var(--ink-soft);
+    margin-top: 14px;
+  }
+  .hero-meta .v {
+    font-family: var(--mono);
+    font-size: 17px;
+    font-weight: 400;
+    color: var(--ink);
+    letter-spacing: -0.01em;
+    display: block;
+    margin-bottom: 4px;
+    font-variant-numeric: tabular-nums;
+  }
+  .hero-meta .l {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: var(--tracking-loose);
+    color: var(--ink-mute);
+  }
+  .hero-meta .v.win  { color: var(--win); }
+  .hero-meta .v.loss { color: var(--loss); }
+
+  /* ─── The mission line ───────────────────────────────────────── */
+  .mission {
+    text-align: center;
+    margin: 96px auto 96px;
+    max-width: 720px;
+    border-top: 1px solid var(--hairline);
+    border-bottom: 1px solid var(--hairline);
+    padding: 36px 24px;
+  }
+  .mission .quote {
+    font-family: var(--serif);
+    font-weight: 300;
+    font-style: italic;
+    font-size: 21px;
+    line-height: 1.5;
+    color: var(--ink-soft);
+    letter-spacing: -0.005em;
+  }
+  .mission .quote::before { content: '“'; color: var(--gold); padding-right: 4px; }
+  .mission .quote::after  { content: '”'; color: var(--gold); padding-left: 2px; }
+  .mission .attrib {
+    margin-top: 18px;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: var(--tracking-loose);
+    color: var(--ink-mute);
+  }
+
+  /* ─── Section header ────────────────────────────────────────── */
+  .section-head {
+    display: flex;
+    align-items: baseline;
+    gap: 14px;
+    margin-bottom: 28px;
+  }
+  .section-head .dot { width: 6px; height: 6px; background: var(--gold); border-radius: 50%; }
+  .section-head h2 {
+    font-family: var(--serif);
+    font-weight: 400;
+    font-size: 22px;
+    color: var(--ink);
+    margin: 0;
+    letter-spacing: -0.01em;
+  }
+  .section-head .sub {
+    font-size: 11px;
+    color: var(--ink-mute);
+    text-transform: uppercase;
+    letter-spacing: var(--tracking-mid);
+    margin-left: auto;
+    font-family: var(--sans);
+  }
+  .section { margin-bottom: 88px; }
+
+  /* ─── The chart ─────────────────────────────────────────────── */
+  .chart-wrap {
+    background: var(--panel);
+    border: 1px solid var(--hairline);
+    border-radius: 2px;
+    padding: 32px 28px 24px;
+  }
+  .chart-legend {
+    display: flex;
+    gap: 32px;
+    margin-bottom: 18px;
+    font-family: var(--sans);
+    font-size: 11px;
+    color: var(--ink-mute);
+    text-transform: uppercase;
+    letter-spacing: var(--tracking-mid);
+  }
+  .chart-legend .swatch { display: inline-block; width: 14px; height: 2px; margin-right: 8px; vertical-align: middle; }
+  .chart-legend .velox-swatch { background: var(--gold); }
+  .chart-legend .spy-swatch { background: var(--ink-soft); border-top: 1px dashed var(--ink-soft); height: 0; }
+
+  /* ─── Duel cards ────────────────────────────────────────────── */
+  .duel {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 1px;
+    background: var(--hairline);
+    border: 1px solid var(--hairline);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+  @media (max-width: 800px) { .duel { grid-template-columns: 1fr; } }
+  .duel-cell {
+    background: var(--panel);
+    padding: 28px 26px;
+    position: relative;
+  }
+  .duel-cell.consensus { background: linear-gradient(180deg, var(--panel) 0%, var(--panel-2) 100%); }
+  .duel-cell .label {
+    font-family: var(--sans);
+    font-size: 10px;
+    color: var(--ink-mute);
+    text-transform: uppercase;
+    letter-spacing: var(--tracking-loose);
+    margin-bottom: 22px;
+  }
+  .duel-cell .name {
+    font-family: var(--serif);
+    font-size: 26px;
+    font-weight: 400;
+    color: var(--ink);
+    margin-bottom: 18px;
+    letter-spacing: -0.01em;
+  }
+  .duel-cell.consensus .name { color: var(--gold); }
+  .duel-cell .pnl {
+    font-family: var(--mono);
+    font-size: 32px;
+    font-weight: 300;
+    color: var(--ink);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.02em;
+    margin-bottom: 6px;
+  }
+  .duel-cell .pnl.win { color: var(--win); }
+  .duel-cell .pnl.loss { color: var(--loss); }
+  .duel-cell .meta {
+    font-family: var(--sans);
+    font-size: 11px;
+    color: var(--ink-mute);
+    letter-spacing: 0.02em;
+  }
+  .duel-cell .meta strong { color: var(--ink-soft); font-weight: 500; }
+
+  /* ─── Editorial entries (decisions / skips / trades) ─────────── */
+  .entry-list { border-top: 1px solid var(--hairline); }
+  .entry {
+    display: grid;
+    grid-template-columns: 80px 90px 1fr 110px;
+    gap: 20px;
+    padding: 18px 0;
+    border-bottom: 1px solid var(--hairline);
+    align-items: baseline;
+    font-size: 13px;
+  }
+  .entry .time {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--ink-mute);
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+  }
+  .entry .symbol {
+    font-family: var(--serif);
+    font-size: 17px;
+    font-weight: 500;
+    color: var(--ink);
+    letter-spacing: -0.005em;
+  }
+  .entry .body {
+    color: var(--ink-soft);
+    font-size: 13px;
+    line-height: 1.5;
+  }
+  .entry .body .vote {
+    color: var(--ink);
+    font-family: var(--mono);
+    font-size: 11px;
+    margin-right: 14px;
+  }
+  .entry .body .vote-claude { color: var(--gold); }
+  .entry .body .vote-gpt { color: #87b3c9; }
+  .entry .body .reason { color: var(--ink-mute); font-style: italic; display: block; margin-top: 4px; font-size: 12px; }
+  .entry .verdict {
+    font-family: var(--sans);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: var(--tracking-mid);
+    text-align: right;
+  }
+  .entry .verdict.executed { color: var(--win); }
+  .entry .verdict.skipped { color: var(--ink-mute); }
+  .entry .verdict.win { color: var(--win); }
+  .entry .verdict.loss { color: var(--loss); }
+  .entry .verdict .pnl-line {
+    font-family: var(--mono);
+    font-size: 14px;
+    font-weight: 500;
+    margin-top: 2px;
+    display: block;
+    font-variant-numeric: tabular-nums;
+    text-transform: none;
+    letter-spacing: 0;
+  }
+
+  /* ─── Positions table (still tabular) ─────────────────────── */
+  .positions-table { width: 100%; border-collapse: collapse; }
+  .positions-table th, .positions-table td {
+    padding: 16px 12px; text-align: left;
+    border-bottom: 1px solid var(--hairline);
+    font-family: var(--mono);
+    font-size: 13px;
+    font-variant-numeric: tabular-nums;
+  }
+  .positions-table th {
+    color: var(--ink-mute);
+    font-family: var(--sans);
+    font-weight: 500;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: var(--tracking-loose);
+    border-bottom: 1px solid var(--hairline-strong);
+  }
+  .positions-table td.symbol {
+    font-family: var(--serif);
+    font-size: 16px;
+    font-weight: 500;
+    color: var(--ink);
+  }
+  .positions-table .win { color: var(--win); }
+  .positions-table .loss { color: var(--loss); }
+  .positions-table .empty {
+    text-align: center; color: var(--ink-mute);
+    font-family: var(--serif); font-style: italic;
+    padding: 36px 0;
+  }
+
+  /* ─── Halt control ─────────────────────────────────────────── */
+  .halt-row {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    margin-top: 48px;
+    padding-top: 28px;
+    border-top: 1px solid var(--hairline);
+  }
+  .halt-btn {
+    background: transparent;
+    color: var(--ink-soft);
+    border: 1px solid var(--hairline-strong);
+    padding: 11px 22px;
+    border-radius: 1px;
+    font-family: var(--sans);
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: var(--tracking-loose);
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: all 200ms ease;
+  }
+  .halt-btn:hover { border-color: var(--loss); color: var(--loss); }
+  .halt-btn.halted { color: var(--win); border-color: rgba(127,180,145,0.4); }
+  .halt-btn.halted:hover { background: var(--win-soft); }
+  .halt-note { font-size: 12px; color: var(--ink-mute); font-family: var(--sans); }
+
+  .halt-banner {
+    display: none;
+    margin-top: 24px;
+    padding: 16px 22px;
+    border-left: 2px solid var(--loss);
+    background: var(--loss-soft);
+    color: var(--ink);
+    font-family: var(--serif);
+    font-size: 14px;
+    font-style: italic;
+  }
+
+  /* ─── Sessions strip ───────────────────────────────────────── */
+  .sessions-strip {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 8px;
+    margin-bottom: 28px;
+  }
+  @media (max-width: 700px) { .sessions-strip { grid-template-columns: repeat(2, 1fr); } }
+  .session-pill {
+    background: var(--panel);
+    border: 1px solid var(--hairline);
+    padding: 14px 16px;
+    border-radius: 2px;
+    font-family: var(--sans);
+  }
+  .session-pill.upcoming { border-color: var(--gold-soft); }
+  .session-pill.upcoming .name { color: var(--gold); }
+  .session-pill.completed { opacity: 0.6; }
+  .session-pill .when {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--ink-mute);
+    letter-spacing: 0.04em;
+    margin-bottom: 4px;
+  }
+  .session-pill .name {
+    font-family: var(--serif);
+    font-size: 14px;
+    color: var(--ink);
+    text-transform: capitalize;
+    letter-spacing: -0.005em;
+  }
+
+  /* ─── Footer ──────────────────────────────────────────────── */
+  footer {
+    margin-top: 120px;
+    padding-top: 32px;
+    border-top: 1px solid var(--hairline);
+    text-align: center;
+    font-size: 11px;
+    color: var(--ink-mute);
+    font-family: var(--sans);
+    letter-spacing: 0.04em;
+    line-height: 2;
+  }
+  footer .colophon {
+    font-family: var(--serif);
+    font-style: italic;
+    font-size: 13px;
+    color: var(--ink-soft);
+    letter-spacing: -0.005em;
+    margin-bottom: 14px;
+    font-weight: 300;
+  }
+
+  .skel { color: var(--ink-mute); font-style: italic; font-family: var(--serif); }
 </style>
 </head>
 <body>
+<div class="container">
 
-<h1>Velox Core</h1>
-<div class="muted" id="subtitle">Loading…</div>
-
-<div id="killBanner" class="banner">⛔ TRADING HALTED — kill switch active. Existing positions still being managed by ratchet.</div>
-
-<div class="card full">
-  <div id="metrics"></div>
-  <div style="margin-top:14px">
-    <button id="killBtn" onclick="toggleKill()">⛔ Halt trading</button>
-    <span class="subtle" style="margin-left:12px">Halt blocks new entries. Open positions stay protected by the ratchet.</span>
+  <!-- TOP BAR -->
+  <div class="topbar">
+    <div class="left">
+      <span id="topStatus">Loading…</span>
+      <span id="topNextSession" class="session-now"></span>
+    </div>
+    <div class="right">
+      <span class="clock" id="topClock">—</span>
+    </div>
   </div>
-</div>
 
-<div class="row">
-  <div class="card half">
-    <h2>Equity vs SPY</h2>
-    <canvas id="equityChart" height="220"></canvas>
+  <!-- HERO -->
+  <div class="hero">
+    <div class="monogram">V</div>
+    <div class="wordmark">Velox &nbsp;·&nbsp; Core</div>
+    <div class="hero-equity" id="heroEquity"><span class="currency">$</span>—<span class="cents">.—</span></div>
+    <div class="hero-meta">
+      <div>
+        <span class="v" id="heroDayPnl">—</span>
+        <span class="l">Today</span>
+      </div>
+      <div>
+        <span class="v" id="heroVsSpy">—</span>
+        <span class="l">vs SPY</span>
+      </div>
+      <div>
+        <span class="v" id="heroTrades">—</span>
+        <span class="l">Closed Trades</span>
+      </div>
+      <div>
+        <span class="v" id="heroWinRate">—</span>
+        <span class="l">Win Rate</span>
+      </div>
+    </div>
   </div>
-  <div class="card half">
-    <h2>Claude vs GPT — who's the better trader?</h2>
-    <div id="scoreboard">Loading…</div>
+
+  <!-- MISSION -->
+  <div class="mission">
+    <div class="quote">Replace a financial advisor. One brokerage account. Twenty-five thousand to five million. Every desk must earn capital — not attention, not excitement. Capital.</div>
+    <div class="attrib">Velox North Star · April 2026</div>
   </div>
-</div>
 
-<div class="card full">
-  <h2>Open positions</h2>
-  <table id="positionsTable"><thead>
-    <tr><th>Symbol</th><th>Side</th><th>Qty</th><th>Entry</th><th>Current</th><th>P&amp;L</th><th>%</th></tr>
-  </thead><tbody></tbody></table>
-</div>
+  <!-- SESSIONS -->
+  <div class="section">
+    <div class="section-head">
+      <span class="dot"></span>
+      <h2>Today's sessions</h2>
+      <span class="sub" id="sessionsCount">—</span>
+    </div>
+    <div class="sessions-strip" id="sessionsStrip"></div>
+  </div>
 
-<div class="card full">
-  <h2>Most recent decisions <span class="subtle">(every consensus event, every skip)</span></h2>
-  <table id="decisionsTable"><thead>
-    <tr><th>Time</th><th>Symbol</th><th>Claude</th><th>GPT</th><th>Consensus</th><th>Result</th><th>Why</th></tr>
-  </thead><tbody></tbody></table>
-</div>
+  <!-- EQUITY VS SPY -->
+  <div class="section">
+    <div class="section-head">
+      <span class="dot"></span>
+      <h2>Equity, vs the index</h2>
+      <span class="sub" id="alphaLabel">—</span>
+    </div>
+    <div class="chart-wrap">
+      <div class="chart-legend">
+        <span><span class="swatch velox-swatch"></span>Velox Core</span>
+        <span><span class="swatch spy-swatch"></span>SPY · normalized</span>
+      </div>
+      <canvas id="equityChart" height="240"></canvas>
+    </div>
+  </div>
 
-<div class="card full">
-  <h2>Skip log <span class="subtle">(decisions where the consensus filter blocked a trade — the data ARC didn't measure)</span></h2>
-  <table id="skipsTable"><thead>
-    <tr><th>Time</th><th>Symbol</th><th>Claude</th><th>GPT</th><th>Skip reason</th></tr>
-  </thead><tbody></tbody></table>
-</div>
+  <!-- THE DUEL -->
+  <div class="section">
+    <div class="section-head">
+      <span class="dot"></span>
+      <h2>The duel</h2>
+      <span class="sub">When each model was on the right side of a trade</span>
+    </div>
+    <div class="duel" id="duelGrid">
+      <div class="duel-cell"><div class="label">Claude</div><div class="name">Sonnet 4.5</div><div class="pnl">—</div><div class="meta skel">awaiting first session</div></div>
+      <div class="duel-cell"><div class="label">OpenAI</div><div class="name">GPT 5.4-mini</div><div class="pnl">—</div><div class="meta skel">awaiting first session</div></div>
+      <div class="duel-cell consensus"><div class="label">Both agreed</div><div class="name">Consensus</div><div class="pnl">—</div><div class="meta skel">where the real edge lives</div></div>
+    </div>
+  </div>
 
-<div class="card full">
-  <h2>Closed trades <span class="subtle">(attribution: which model was right)</span></h2>
-  <table id="tradesTable"><thead>
-    <tr><th>Time</th><th>Symbol</th><th>Side</th><th>Entry</th><th>Exit</th><th>P&amp;L</th><th>%</th><th>Hold</th><th>Reason</th><th>Votes</th></tr>
-  </thead><tbody></tbody></table>
+  <!-- POSITIONS -->
+  <div class="section">
+    <div class="section-head">
+      <span class="dot"></span>
+      <h2>Open positions</h2>
+      <span class="sub" id="positionsCount">—</span>
+    </div>
+    <table class="positions-table"><thead>
+      <tr><th>Symbol</th><th>Side</th><th>Qty</th><th>Entry</th><th>Current</th><th>P&amp;L</th><th>%</th></tr>
+    </thead><tbody id="positionsBody"></tbody></table>
+  </div>
+
+  <!-- DECISIONS -->
+  <div class="section">
+    <div class="section-head">
+      <span class="dot"></span>
+      <h2>The journal</h2>
+      <span class="sub">Every decision, recorded</span>
+    </div>
+    <div class="entry-list" id="decisionsList"></div>
+  </div>
+
+  <!-- SKIP LOG -->
+  <div class="section">
+    <div class="section-head">
+      <span class="dot"></span>
+      <h2>The skip log</h2>
+      <span class="sub">What we did not do, and why</span>
+    </div>
+    <div class="entry-list" id="skipsList"></div>
+  </div>
+
+  <!-- CLOSED TRADES -->
+  <div class="section">
+    <div class="section-head">
+      <span class="dot"></span>
+      <h2>Closed trades</h2>
+      <span class="sub">Attribution: who was right</span>
+    </div>
+    <div class="entry-list" id="tradesList"></div>
+  </div>
+
+  <!-- HALT CONTROL -->
+  <div class="section">
+    <div class="halt-row">
+      <button class="halt-btn" id="haltBtn" onclick="toggleKill()">Halt trading</button>
+      <span class="halt-note">Existing positions remain protected by the ratchet. New entries blocked until resumed.</span>
+    </div>
+    <div class="halt-banner" id="haltBanner">Trading is halted. The ratchet is still managing every open position. New entries are blocked until you resume.</div>
+  </div>
+
+  <!-- FOOTER -->
+  <footer>
+    <div class="colophon">For Holly, Evelyn, Emma, and Miles.</div>
+    <div id="footerConfig">—</div>
+    <div>Paper account · Anthropic + OpenAI consensus · No paid feeds · Single desk</div>
+  </footer>
+
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
@@ -268,175 +769,300 @@ async function api(path) {
   return r.json();
 }
 
-function fmt(n) { return (n>=0?'+':'') + '$' + Math.abs(n).toFixed(2); }
-function pct(n) { return (n>=0?'+':'') + n.toFixed(2) + '%'; }
-function dt(ts) { const d = new Date(ts*1000); return d.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}); }
-function ago(ts) {
+// ── Formatters ─────────────────────────────────────────────────
+function fmtMoney(n, sign=true) {
+  const v = Math.abs(n);
+  const s = sign ? (n>=0 ? '+' : '−') : '';
+  return s + '$' + v.toFixed(2);
+}
+function fmtPct(n) { return (n>=0?'+':'−') + Math.abs(n).toFixed(2) + '%'; }
+function fmtTime(ts) {
+  const d = new Date(ts*1000);
+  return d.toLocaleTimeString([], {hour:'numeric', minute:'2-digit'});
+}
+function relTime(ts) {
   const s = Math.floor(Date.now()/1000 - ts);
-  if (s < 60) return s + 's ago';
+  if (s < 60) return 'just now';
   if (s < 3600) return Math.floor(s/60) + 'm ago';
-  return Math.floor(s/3600) + 'h ago';
-}
-function actionTag(a) {
-  const cls = (a||'HOLD').toLowerCase();
-  return `<span class="tag ${cls}">${a||'HOLD'}</span>`;
+  if (s < 86400) return Math.floor(s/3600) + 'h ago';
+  return Math.floor(s/86400) + 'd ago';
 }
 
-let equityChart;
+// ── Top bar clock + status ─────────────────────────────────────
+const SESSIONS = [
+  {h: 9, m: 35, name: 'open'},
+  {h: 11, m: 0, name: 'mid morning'},
+  {h: 13, m: 30, name: 'lunch reversal'},
+  {h: 15, m: 0, name: 'power hour'},
+  {h: 15, m: 45, name: 'pre-close'},
+];
+const EOD_FLATTEN = {h: 15, m: 55};
 
+function nowEt() {
+  const d = new Date();
+  // Convert to ET via toLocaleString round-trip
+  const etStr = d.toLocaleString('en-US', {timeZone: 'America/New_York'});
+  return new Date(etStr);
+}
+
+function nextSessionInfo() {
+  const now = nowEt();
+  const today = SESSIONS.map(s => {
+    const t = new Date(now);
+    t.setHours(s.h, s.m, 0, 0);
+    return {time: t, name: s.name};
+  });
+  const upcoming = today.find(s => s.time > now);
+  if (upcoming) {
+    const diff = upcoming.time - now;
+    const hours = Math.floor(diff / 3600000);
+    const mins = Math.floor((diff % 3600000) / 60000);
+    const wait = hours > 0 ? `${hours}h ${mins}m` : `${mins}m`;
+    return {label: `Next: ${upcoming.name} in ${wait}`, today, idx: today.indexOf(upcoming)};
+  }
+  return {label: 'Sessions complete · next: tomorrow 9:35 AM ET', today, idx: -1};
+}
+
+function updateTopBar() {
+  const et = nowEt();
+  const clockStr = et.toLocaleTimeString('en-US', {hour:'numeric', minute:'2-digit', hour12:true}) + ' ET';
+  document.getElementById('topClock').textContent = clockStr;
+  const info = nextSessionInfo();
+  document.getElementById('topNextSession').textContent = info.label;
+}
+setInterval(updateTopBar, 30000);
+updateTopBar();
+
+// ── Sessions strip ─────────────────────────────────────────────
+function renderSessions() {
+  const info = nextSessionInfo();
+  const html = info.today.map((s, i) => {
+    const past = s.time < nowEt();
+    const isNext = i === info.idx;
+    const cls = past ? 'completed' : (isNext ? 'upcoming' : '');
+    const time = s.time.toLocaleTimeString([], {hour:'numeric', minute:'2-digit'});
+    return `<div class="session-pill ${cls}">
+      <div class="when">${time}</div>
+      <div class="name">${s.name}</div>
+    </div>`;
+  }).join('');
+  document.getElementById('sessionsStrip').innerHTML = html;
+  const completed = info.today.filter(s => s.time < nowEt()).length;
+  document.getElementById('sessionsCount').textContent = `${completed} of 5 complete`;
+}
+
+// ── Status (hero) ──────────────────────────────────────────────
 async function refreshStatus() {
   const s = await api('/api/status');
-  const sub = `${s.config.anthropic_model} vs ${s.config.openai_model} · consensus ≥${s.config.min_consensus_confidence}% · ${s.config.position_size_pct}% per position · max ${s.config.max_positions} concurrent · ratchet ${s.config.ratchet.hard_stop_pct}% / +${s.config.ratchet.activation_pct}% / ${s.config.ratchet.trail_pct}% trail`;
-  document.getElementById('subtitle').textContent = sub;
+  // Hero equity
+  const eq = (s.equity||0);
+  const whole = Math.floor(eq).toLocaleString();
+  const cents = '.' + (eq - Math.floor(eq)).toFixed(2).slice(2);
+  document.getElementById('heroEquity').innerHTML =
+    `<span class="currency">$</span>${whole}<span class="cents">${cents}</span>`;
 
-  const m = s.summary || {};
-  const cls = (n) => n > 0 ? 'positive' : (n < 0 ? 'negative' : '');
-  document.getElementById('metrics').innerHTML = `
-    <div class="metric"><div class="v">$${(s.equity||0).toFixed(2)}</div><div class="l">Equity</div></div>
-    <div class="metric"><div class="v ${cls(s.day_pnl)}">${fmt(s.day_pnl)}</div><div class="l">Day P&L</div></div>
-    <div class="metric"><div class="v ${cls(s.day_pnl_pct)}">${pct(s.day_pnl_pct)}</div><div class="l">Day %</div></div>
-    <div class="metric"><div class="v">${m.total_trades||0}</div><div class="l">Closed Trades</div></div>
-    <div class="metric"><div class="v ${cls(m.total_pnl)}">${fmt(m.total_pnl||0)}</div><div class="l">Total P&L</div></div>
-    <div class="metric"><div class="v">${(m.win_rate||0).toFixed(0)}%</div><div class="l">Win Rate</div></div>
-  `;
-  const banner = document.getElementById('killBanner');
-  const btn = document.getElementById('killBtn');
+  const dayCls = s.day_pnl > 0 ? 'win' : (s.day_pnl < 0 ? 'loss' : '');
+  document.getElementById('heroDayPnl').textContent = fmtMoney(s.day_pnl) + '  ·  ' + fmtPct(s.day_pnl_pct);
+  document.getElementById('heroDayPnl').className = 'v ' + dayCls;
+
+  // vsSpy is computed from equity-curve refresh
+  document.getElementById('heroTrades').textContent = (s.summary?.total_trades || 0);
+  document.getElementById('heroWinRate').textContent = (s.summary?.win_rate || 0).toFixed(0) + '%';
+
+  document.getElementById('topStatus').textContent =
+    (s.trading_halted ? 'TRADING HALTED' : 'TRADING LIVE') +
+    `  ·  Paper · $${(s.equity||0).toFixed(0)}`;
+
+  document.getElementById('footerConfig').textContent =
+    `${s.config.anthropic_model} + ${s.config.openai_model}  ·  consensus ≥ ${s.config.min_consensus_confidence}%  ·  ${s.config.position_size_pct}% per position, max ${s.config.max_positions} concurrent  ·  ratchet ${s.config.ratchet.hard_stop_pct}% / +${s.config.ratchet.activation_pct}% / ${s.config.ratchet.trail_pct}% trail`;
+
+  const banner = document.getElementById('haltBanner');
+  const btn = document.getElementById('haltBtn');
   if (s.trading_halted) {
     banner.style.display = 'block';
-    btn.textContent = '✅ Resume trading'; btn.classList.add('resume');
+    btn.textContent = 'Resume trading';
+    btn.classList.add('halted');
   } else {
     banner.style.display = 'none';
-    btn.textContent = '⛔ Halt trading'; btn.classList.remove('resume');
+    btn.textContent = 'Halt trading';
+    btn.classList.remove('halted');
   }
 }
 
+// ── Equity chart + alpha ───────────────────────────────────────
+let equityChart;
 async function refreshEquity() {
   const data = await api('/api/equity-curve');
-  if (!data.length) return;
-  const labels = data.map(d => new Date(d.timestamp*1000).toLocaleString());
+  if (!data.length) {
+    document.getElementById('alphaLabel').textContent = 'awaiting data';
+    return;
+  }
+  const labels = data.map(d => new Date(d.timestamp*1000).toLocaleDateString('en-US', {month:'short', day:'numeric'}));
   const equityVals = data.map(d => d.equity);
-  // Normalize SPY to start at the same equity for visual comparison
   const firstEq = equityVals[0] || 1;
-  const firstSpy = data.find(d => d.spy)?.spy || 1;
-  const spyVals = data.map(d => d.spy ? (d.spy / firstSpy * firstEq) : null);
+  const firstSpy = data.find(d => d.spy)?.spy || 0;
+  const spyVals = firstSpy ? data.map(d => d.spy ? (d.spy / firstSpy * firstEq) : null) : [];
+
+  // Compute alpha
+  const lastEq = equityVals[equityVals.length - 1];
+  const eqRet = ((lastEq / firstEq) - 1) * 100;
+  let label = `Velox ${fmtPct(eqRet)}`;
+  if (firstSpy && spyVals.length) {
+    const lastSpy = spyVals.filter(v => v != null).slice(-1)[0];
+    const spyRet = lastSpy ? ((lastSpy / firstEq) - 1) * 100 : 0;
+    const alpha = eqRet - spyRet;
+    label = `Velox ${fmtPct(eqRet)}  ·  SPY ${fmtPct(spyRet)}  ·  Alpha ${fmtPct(alpha)}`;
+    document.getElementById('heroVsSpy').textContent = fmtPct(alpha);
+    document.getElementById('heroVsSpy').className = 'v ' + (alpha >= 0 ? 'win' : 'loss');
+  }
+  document.getElementById('alphaLabel').textContent = label;
+
   const ctx = document.getElementById('equityChart').getContext('2d');
   const cfg = {
     type: 'line',
     data: { labels, datasets: [
-      { label: 'Velox', data: equityVals, borderColor: '#3fb950', tension: .25, pointRadius: 0 },
-      { label: 'SPY (normalized)', data: spyVals, borderColor: '#8b949e', borderDash: [4,4], tension: .25, pointRadius: 0 },
+      { label: 'Velox', data: equityVals, borderColor: '#c9a870', backgroundColor: 'rgba(201,168,112,0.05)', tension: .25, pointRadius: 0, borderWidth: 1.5, fill: true },
+      { label: 'SPY', data: spyVals, borderColor: '#aaa39a', borderDash: [3,5], tension: .25, pointRadius: 0, borderWidth: 1 },
     ]},
     options: {
-      animation: false, responsive: true, plugins: { legend: { labels: { color: '#c9d1d9' } } },
+      animation: false, responsive: true,
+      plugins: { legend: { display: false } },
       scales: {
-        x: { ticks: { color: '#8b949e', maxTicksLimit: 8 }, grid: { color: '#21262d' } },
-        y: { ticks: { color: '#8b949e' }, grid: { color: '#21262d' } },
+        x: { ticks: { color: '#6e6a62', font: {size: 10, family: 'JetBrains Mono'}, maxTicksLimit: 8 }, grid: { display: false }, border: { color: 'rgba(232,226,213,0.16)' } },
+        y: { ticks: { color: '#6e6a62', font: {size: 10, family: 'JetBrains Mono'}, callback: v => '$' + v.toLocaleString() }, grid: { color: 'rgba(232,226,213,0.04)' }, border: { display: false } },
       },
     },
   };
-  if (equityChart) { equityChart.data = cfg.data; equityChart.update(); }
+  if (equityChart) { equityChart.data = cfg.data; equityChart.update('none'); }
   else equityChart = new Chart(ctx, cfg);
 }
 
+// ── Duel (scoreboard) ──────────────────────────────────────────
 async function refreshScoreboard() {
   const sb = await api('/api/scoreboard');
-  const row = (label, s, color) => `
-    <div style="margin-bottom:14px">
-      <div style="color:${color}; font-weight:600">${label}</div>
-      <div class="metric" style="margin-right:18px"><div class="v">${s.trades}</div><div class="l">Trades</div></div>
-      <div class="metric" style="margin-right:18px"><div class="v">${s.wins}/${s.trades-s.wins}</div><div class="l">W/L</div></div>
-      <div class="metric" style="margin-right:18px"><div class="v">${s.win_rate.toFixed(0)}%</div><div class="l">Win %</div></div>
-      <div class="metric"><div class="v ${s.total_pnl>=0?'positive':'negative'}">${fmt(s.total_pnl)}</div><div class="l">P&L</div></div>
+  const cell = (label, displayName, s) => {
+    const cls = s.total_pnl > 0 ? 'win' : (s.total_pnl < 0 ? 'loss' : '');
+    if (!s.trades) {
+      return `<div class="duel-cell ${label==='Both agreed'?'consensus':''}">
+        <div class="label">${label}</div>
+        <div class="name">${displayName}</div>
+        <div class="pnl">—</div>
+        <div class="meta skel">awaiting first decision</div>
+      </div>`;
+    }
+    return `<div class="duel-cell ${label==='Both agreed'?'consensus':''}">
+      <div class="label">${label}</div>
+      <div class="name">${displayName}</div>
+      <div class="pnl ${cls}">${fmtMoney(s.total_pnl)}</div>
+      <div class="meta"><strong>${s.trades}</strong> trades · <strong>${s.wins}</strong> wins · ${s.win_rate.toFixed(0)}% rate</div>
     </div>`;
-  document.getElementById('scoreboard').innerHTML =
-    row('Claude (when right side)', sb.claude, '#bf6d2c') +
-    row('GPT (when right side)', sb.gpt, '#2c8bbf') +
-    row('Both agreed (consensus)', sb.consensus, '#3fb950');
+  };
+  document.getElementById('duelGrid').innerHTML =
+    cell('Claude', 'Sonnet 4.5', sb.claude) +
+    cell('OpenAI', 'GPT 5.4-mini', sb.gpt) +
+    cell('Both agreed', 'Consensus', sb.consensus);
 }
 
+// ── Positions ──────────────────────────────────────────────────
 async function refreshPositions() {
   const data = await api('/api/positions');
-  const tbody = document.querySelector('#positionsTable tbody');
+  const tbody = document.getElementById('positionsBody');
+  document.getElementById('positionsCount').textContent =
+    data.positions.length ? `${data.positions.length} open` : 'none open';
   if (!data.positions.length) {
-    tbody.innerHTML = '<tr><td colspan="7" class="muted">No open positions</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="7" class="empty">No positions yet — patient capital, not idle capital.</td></tr>';
     return;
   }
-  tbody.innerHTML = data.positions.map(p => `
-    <tr>
-      <td><strong>${p.symbol}</strong></td>
-      <td>${actionTag(p.side === 'long' ? 'BUY' : 'SHORT')}</td>
+  tbody.innerHTML = data.positions.map(p => {
+    const cls = p.unrealized >= 0 ? 'win' : 'loss';
+    return `<tr>
+      <td class="symbol">${p.symbol}</td>
+      <td>${p.side === 'long' ? 'long' : 'short'}</td>
       <td>${p.qty}</td>
       <td>$${p.entry.toFixed(2)}</td>
       <td>$${p.current.toFixed(2)}</td>
-      <td class="${p.unrealized>=0?'positive':'negative'}">${fmt(p.unrealized)}</td>
-      <td class="${p.unrealized_pct>=0?'positive':'negative'}">${pct(p.unrealized_pct)}</td>
-    </tr>`).join('');
+      <td class="${cls}">${fmtMoney(p.unrealized)}</td>
+      <td class="${cls}">${fmtPct(p.unrealized_pct)}</td>
+    </tr>`;
+  }).join('');
+}
+
+// ── Editorial entry renderer ───────────────────────────────────
+function entryHtml(d, opts={}) {
+  const verdictHtml = opts.verdictHtml || '';
+  const claudeR = d.claude_reason ? d.claude_reason : '';
+  const gptR = d.gpt_reason ? d.gpt_reason : '';
+  const reasons = [];
+  if (claudeR) reasons.push(`<em>Claude:</em> ${claudeR}`);
+  if (gptR) reasons.push(`<em>GPT:</em> ${gptR}`);
+  return `<div class="entry">
+    <div class="time">${fmtTime(d.timestamp)}</div>
+    <div class="symbol">${d.symbol}</div>
+    <div class="body">
+      <span class="vote vote-claude">C ${d.claude_action} · ${(d.claude_confidence||0).toFixed(0)}</span>
+      <span class="vote vote-gpt">G ${d.gpt_action} · ${(d.gpt_confidence||0).toFixed(0)}</span>
+      ${reasons.length ? `<span class="reason">${reasons.join('  ·  ')}</span>` : ''}
+    </div>
+    <div class="verdict ${opts.verdictClass||''}">${verdictHtml}</div>
+  </div>`;
 }
 
 async function refreshDecisions() {
-  const data = await api('/api/decisions?limit=30');
-  const tbody = document.querySelector('#decisionsTable tbody');
+  const data = await api('/api/decisions?limit=20');
+  const list = document.getElementById('decisionsList');
   if (!data.length) {
-    tbody.innerHTML = '<tr><td colspan="7" class="muted">No decisions yet — first session will populate this.</td></tr>';
+    list.innerHTML = '<div class="entry"><div class="time">—</div><div></div><div class="body skel">No decisions yet. The first session will fill this column with everything Claude and GPT thought, agreed on, and disagreed about.</div><div></div></div>';
     return;
   }
-  tbody.innerHTML = data.map(d => {
-    const result = d.executed ? `<span class="positive">EXECUTED</span>` : `<span class="muted">skipped</span>`;
-    const why = d.skip_reason || '—';
-    return `<tr>
-      <td>${dt(d.timestamp)}</td>
-      <td><strong>${d.symbol}</strong></td>
-      <td>${actionTag(d.claude_action)} <span class="subtle">${(d.claude_confidence||0).toFixed(0)}%</span></td>
-      <td>${actionTag(d.gpt_action)} <span class="subtle">${(d.gpt_confidence||0).toFixed(0)}%</span></td>
-      <td>${actionTag(d.consensus_action)} <span class="subtle">${(d.consensus_confidence||0).toFixed(0)}%</span></td>
-      <td>${result}</td>
-      <td class="skip-reason">${why}</td>
-    </tr>`;
+  list.innerHTML = data.map(d => {
+    const verdictClass = d.executed ? 'executed' : 'skipped';
+    const verdictHtml = d.executed
+      ? `${d.consensus_action} · ${(d.consensus_confidence||0).toFixed(0)}%<span class="pnl-line">entered</span>`
+      : `skipped<span class="pnl-line" style="color:var(--ink-mute);font-size:11px">${d.skip_reason||'no signal'}</span>`;
+    return entryHtml(d, {verdictClass, verdictHtml});
   }).join('');
 }
 
 async function refreshSkips() {
-  const data = await api('/api/skips?limit=30');
-  const tbody = document.querySelector('#skipsTable tbody');
+  const data = await api('/api/skips?limit=20');
+  const list = document.getElementById('skipsList');
   if (!data.length) {
-    tbody.innerHTML = '<tr><td colspan="5" class="muted">No skips yet.</td></tr>';
+    list.innerHTML = '<div class="entry"><div class="time">—</div><div></div><div class="body skel">No skips yet. When Claude and GPT disagree, those moments land here. Over thirty days this becomes the data ARC never measured.</div><div></div></div>';
     return;
   }
-  tbody.innerHTML = data.map(d => `
-    <tr>
-      <td>${dt(d.timestamp)}</td>
-      <td><strong>${d.symbol}</strong></td>
-      <td>${actionTag(d.claude_action)} <span class="subtle">${(d.claude_confidence||0).toFixed(0)}%</span></td>
-      <td>${actionTag(d.gpt_action)} <span class="subtle">${(d.gpt_confidence||0).toFixed(0)}%</span></td>
-      <td class="skip-reason">${d.skip_reason||'—'}</td>
-    </tr>`).join('');
+  list.innerHTML = data.map(d => entryHtml(d, {
+    verdictClass: 'skipped',
+    verdictHtml: `<span style="color:var(--warn)">skipped</span><span class="pnl-line" style="color:var(--ink-mute);font-size:11px">${d.skip_reason||'no consensus'}</span>`,
+  })).join('');
 }
 
 async function refreshTrades() {
-  const data = await api('/api/trades?limit=30');
-  const tbody = document.querySelector('#tradesTable tbody');
+  const data = await api('/api/trades?limit=20');
+  const list = document.getElementById('tradesList');
   if (!data.length) {
-    tbody.innerHTML = '<tr><td colspan="10" class="muted">No closed trades yet.</td></tr>';
+    list.innerHTML = '<div class="entry"><div class="time">—</div><div></div><div class="body skel">No closed trades yet. When the ratchet completes its first cycle, the verdict on each trade — and which model was on the right side — appears here.</div><div></div></div>';
     return;
   }
-  tbody.innerHTML = data.map(t => {
+  list.innerHTML = data.map(t => {
+    const cls = (t.pnl||0) >= 0 ? 'win' : 'loss';
     const hold = t.hold_seconds ? Math.round(t.hold_seconds/60) + 'm' : '—';
-    const pnlClass = (t.pnl||0) >= 0 ? 'positive' : 'negative';
-    return `<tr>
-      <td>${dt(t.exit_time||t.entry_time)}</td>
-      <td><strong>${t.symbol}</strong></td>
-      <td>${actionTag(t.side === 'long' ? 'BUY' : 'SHORT')}</td>
-      <td>$${(t.entry_price||0).toFixed(2)}</td>
-      <td>$${(t.exit_price||0).toFixed(2)}</td>
-      <td class="${pnlClass}">${fmt(t.pnl||0)}</td>
-      <td class="${pnlClass}">${pct(t.pnl_pct||0)}</td>
-      <td>${hold}</td>
-      <td class="subtle">${t.exit_reason||''}</td>
-      <td class="subtle">C:${t.claude_vote||'?'} · G:${t.gpt_vote||'?'}</td>
-    </tr>`;
+    return `<div class="entry">
+      <div class="time">${fmtTime(t.exit_time||t.entry_time)}</div>
+      <div class="symbol">${t.symbol}</div>
+      <div class="body">
+        <span class="vote vote-claude">C ${t.claude_vote||'?'}</span>
+        <span class="vote vote-gpt">G ${t.gpt_vote||'?'}</span>
+        <span class="reason">${t.side} · entry $${(t.entry_price||0).toFixed(2)} → exit $${(t.exit_price||0).toFixed(2)} · held ${hold} · ${t.exit_reason||''}</span>
+      </div>
+      <div class="verdict ${cls}">
+        ${fmtPct(t.pnl_pct||0)}
+        <span class="pnl-line">${fmtMoney(t.pnl||0)}</span>
+      </div>
+    </div>`;
   }).join('');
 }
 
+// ── Halt switch ────────────────────────────────────────────────
 async function toggleKill() {
   const s = await api('/api/status');
   const r = await fetch('/api/kill' + Q, {
@@ -448,8 +1074,13 @@ async function toggleKill() {
 }
 
 async function refreshAll() {
-  try { await Promise.all([refreshStatus(), refreshEquity(), refreshScoreboard(), refreshPositions(), refreshDecisions(), refreshSkips(), refreshTrades()]); }
-  catch (e) { console.error(e); }
+  try {
+    renderSessions();
+    await Promise.all([
+      refreshStatus(), refreshEquity(), refreshScoreboard(),
+      refreshPositions(), refreshDecisions(), refreshSkips(), refreshTrades(),
+    ]);
+  } catch (e) { console.error(e); }
 }
 
 refreshAll();
