@@ -1,0 +1,17 @@
+[Unit]
+Description=Velox Core Trading Bot
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/velox-core
+ExecStart=/opt/velox-core/.venv/bin/python run.py
+Restart=always
+RestartSec=10
+Environment=PYTHONUNBUFFERED=1
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
