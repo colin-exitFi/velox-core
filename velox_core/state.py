@@ -102,6 +102,17 @@ CREATE TABLE IF NOT EXISTS market_briefs (
 );
 
 CREATE INDEX IF NOT EXISTS idx_briefs_timestamp ON market_briefs(timestamp);
+
+CREATE TABLE IF NOT EXISTS daily_reviews (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    timestamp REAL NOT NULL,
+    review_date TEXT NOT NULL,    -- 'YYYY-MM-DD' for easy lookup
+    text TEXT NOT NULL,
+    day_pnl REAL,
+    n_closed INTEGER
+);
+
+CREATE INDEX IF NOT EXISTS idx_reviews_date ON daily_reviews(review_date);
 """
 
 
@@ -423,6 +434,39 @@ def recent_market_briefs(limit: int = 10) -> List[Dict]:
             d["citations"] = []
         out.append(d)
     return out
+
+
+# ── Daily reviews ──────────────────────────────────────────────────
+
+
+def record_daily_review(text: str, day_pnl: float, n_closed: int) -> int:
+    from datetime import datetime as _dt
+    today = _dt.now().strftime("%Y-%m-%d")
+    with _conn() as c:
+        # Replace today's review if one already exists (idempotent re-runs)
+        c.execute("DELETE FROM daily_reviews WHERE review_date = ?", (today,))
+        cur = c.execute(
+            """INSERT INTO daily_reviews (timestamp, review_date, text, day_pnl, n_closed)
+               VALUES (?,?,?,?,?)""",
+            (time.time(), today, text, day_pnl, n_closed),
+        )
+        return cur.lastrowid
+
+
+def latest_daily_review() -> Optional[Dict]:
+    with _conn() as c:
+        row = c.execute(
+            "SELECT * FROM daily_reviews ORDER BY timestamp DESC LIMIT 1"
+        ).fetchone()
+        return dict(row) if row else None
+
+
+def recent_daily_reviews(limit: int = 14) -> List[Dict]:
+    with _conn() as c:
+        rows = c.execute(
+            "SELECT * FROM daily_reviews ORDER BY timestamp DESC LIMIT ?", (limit,)
+        ).fetchall()
+        return [dict(r) for r in rows]
 
 
 # ── Equity history (JSON for fast charting) ────────────────────────

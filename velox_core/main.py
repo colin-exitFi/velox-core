@@ -20,7 +20,7 @@ from typing import Dict, List, Optional, Tuple
 import pytz
 from loguru import logger
 
-from velox_core import broker, config, consensus, market_brief, ratchet, state
+from velox_core import broker, config, consensus, market_brief, ratchet, review, sizing, state
 from velox_core.universe import UNIVERSE
 
 
@@ -149,37 +149,40 @@ async def run_session(label: str):
 
         executed = False
 
-        if action == "BUY" and not already_held:
-            qty = _size_position(equity, price)
+        if action in ("BUY", "SHORT") and not already_held:
+            # Conviction-based sizing inherited from velox-classic learnings.
+            qty, intended_pct = sizing.size_position(equity, price, conf)
             if qty > 0:
-                order = await broker.submit_market_order(symbol, qty, "buy")
-                if order:
-                    decision_id = state.record_decision(
-                        session_id, symbol, price, cv, gv, "BUY", conf,
-                        skip_reason="", executed=True,
+                # Concentration guard inherited from velox-classic.
+                concentration_block = sizing.concentration_block_reason(
+                    symbol=symbol,
+                    intended_notional=qty * price,
+                    equity=equity,
+                    positions=positions,
+                )
+                if concentration_block:
+                    state.record_decision(
+                        session_id, symbol, price, cv, gv, "HOLD", conf,
+                        skip_reason=concentration_block, executed=False,
                     )
-                    state.record_trade_open(decision_id, symbol, "long", price, qty, conf, cv, gv)
-                    state.audit(
-                        "trade_open", "info",
-                        f"{symbol} long qty={qty} @ ${price:.2f} conf={conf:.0f}",
-                    )
-                    n_open += 1
-                    opened += 1
-                    executed = True
+                    skipped += 1
+                    continue
 
-        elif action == "SHORT" and not already_held:
-            qty = _size_position(equity, price)
-            if qty > 0:
-                order = await broker.submit_market_order(symbol, qty, "sell")
+                side_label = "buy" if action == "BUY" else "sell"
+                trade_side = "long" if action == "BUY" else "short"
+                order = await broker.submit_market_order(symbol, qty, side_label)
                 if order:
                     decision_id = state.record_decision(
-                        session_id, symbol, price, cv, gv, "SHORT", conf,
+                        session_id, symbol, price, cv, gv, action, conf,
                         skip_reason="", executed=True,
                     )
-                    state.record_trade_open(decision_id, symbol, "short", price, qty, conf, cv, gv)
+                    state.record_trade_open(
+                        decision_id, symbol, trade_side, price, qty, conf, cv, gv
+                    )
                     state.audit(
                         "trade_open", "info",
-                        f"{symbol} short qty={qty} @ ${price:.2f} conf={conf:.0f}",
+                        f"{symbol} {trade_side} qty={qty} @ ${price:.2f} "
+                        f"conf={conf:.0f} size={intended_pct:.2f}%",
                     )
                     n_open += 1
                     opened += 1
@@ -215,17 +218,6 @@ async def run_session(label: str):
         "session_end", "info",
         f"{label} opened={opened} skipped={skipped} equity=${final_equity:.2f}",
     )
-
-
-def _size_position(equity: float, price: float) -> float:
-    """Whole-share sizing at POSITION_SIZE_PCT of equity. Min $50 notional."""
-    if price <= 0 or equity <= 0:
-        return 0
-    notional = equity * (config.POSITION_SIZE_PCT / 100.0)
-    qty = max(0, int(notional // price))
-    if qty * price < 50:  # don't bother with tiny positions
-        return 0
-    return float(qty)
 
 
 # ── Ratchet management for open positions ──────────────────────────
@@ -354,7 +346,29 @@ async def _tick():
             await run_session(label)
             _executed_today.add(key)
 
-    # 3. Ratchet on open positions (every tick during market hours)
+    # 3. Daily review — fires once per trading day at the configured ET time
+    review_dt = ET.localize(
+        datetime.combine(
+            now.date(),
+            dtime(config.DAILY_REVIEW_HOUR_ET, config.DAILY_REVIEW_MIN_ET),
+        )
+    )
+    review_key = f"{now.date().isoformat()}_daily_review"
+    if (
+        config.DAILY_REVIEW_ENABLED
+        and now >= review_dt
+        and review_key not in _executed_today
+        and now.weekday() < 5  # weekdays only
+    ):
+        try:
+            logger.info("📝 Writing daily review…")
+            await review.write_daily_review()
+        except Exception as e:
+            logger.error(f"Daily review error: {e}")
+            state.audit("daily_review_error", "error", str(e))
+        _executed_today.add(review_key)
+
+    # 4. Ratchet on open positions (every tick during market hours)
     if await broker.is_market_open():
         await ratchet_tick()
 

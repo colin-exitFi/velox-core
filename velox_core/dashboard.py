@@ -164,6 +164,22 @@ async def api_market_brief(request: Request):
     }
 
 
+@app.get("/api/daily-review")
+async def api_daily_review(request: Request):
+    _check_token(request)
+    r = state.latest_daily_review()
+    if not r:
+        return {"available": False}
+    return {
+        "available": True,
+        "timestamp": r["timestamp"],
+        "review_date": r.get("review_date", ""),
+        "text": r["text"],
+        "day_pnl": r.get("day_pnl", 0),
+        "n_closed": r.get("n_closed", 0),
+    }
+
+
 # ── The single HTML page ───────────────────────────────────────────
 
 
@@ -363,6 +379,49 @@ HTML = """<!DOCTYPE html>
     font-family: var(--sans);
   }
   .section { margin-bottom: 88px; }
+
+  /* ─── Daily review (the editorial voice) ───────────────────── */
+  .review-section {
+    margin: 0 auto 88px;
+    max-width: 760px;
+  }
+  .review-eyebrow {
+    text-align: center;
+    font-family: var(--sans);
+    font-size: 11px;
+    color: var(--gold);
+    text-transform: uppercase;
+    letter-spacing: var(--tracking-loose);
+    margin-bottom: 18px;
+  }
+  .review-headline {
+    text-align: center;
+    font-family: var(--serif);
+    font-weight: 400;
+    font-size: 28px;
+    color: var(--ink);
+    letter-spacing: -0.015em;
+    margin-bottom: 32px;
+    line-height: 1.2;
+  }
+  .review-body {
+    font-family: var(--serif);
+    font-weight: 300;
+    font-size: 17px;
+    line-height: 1.8;
+    color: var(--ink-soft);
+    letter-spacing: -0.005em;
+  }
+  .review-body p { margin: 0 0 18px; }
+  .review-meta {
+    margin-top: 24px;
+    text-align: center;
+    font-family: var(--sans);
+    font-size: 11px;
+    color: var(--ink-mute);
+    text-transform: uppercase;
+    letter-spacing: var(--tracking-mid);
+  }
 
   /* ─── Market brief ──────────────────────────────────────────── */
   .brief-card {
@@ -726,6 +785,14 @@ HTML = """<!DOCTYPE html>
   <div class="mission">
     <div class="quote">Replace a financial advisor. One brokerage account. Twenty-five thousand to five million. Every desk must earn capital — not attention, not excitement. Capital.</div>
     <div class="attrib">Velox North Star · April 2026</div>
+  </div>
+
+  <!-- DAILY REVIEW (the editorial voice — appears once written) -->
+  <div class="review-section" id="reviewSection" style="display:none">
+    <div class="review-eyebrow">Today, in 200 words</div>
+    <div class="review-headline" id="reviewHeadline">—</div>
+    <div class="review-body" id="reviewBody"></div>
+    <div class="review-meta" id="reviewMeta"></div>
   </div>
 
   <!-- SESSIONS -->
@@ -1205,13 +1272,39 @@ async function refreshBrief() {
   } catch (e) { console.error('brief', e); }
 }
 
+// ── Daily review ───────────────────────────────────────────────
+async function refreshReview() {
+  try {
+    const r = await api('/api/daily-review');
+    const section = document.getElementById('reviewSection');
+    if (!r.available) { section.style.display = 'none'; return; }
+    section.style.display = 'block';
+
+    // Use the first sentence (or first 90 chars) as the headline; the rest is the body.
+    const text = (r.text || '').trim();
+    const splitIdx = text.search(/[.!?]\\s/);
+    const headline = splitIdx > 0 && splitIdx < 140 ? text.slice(0, splitIdx + 1) : text.slice(0, 140);
+    const body = splitIdx > 0 ? text.slice(splitIdx + 2) : '';
+
+    document.getElementById('reviewHeadline').textContent = headline;
+    const paragraphs = body.split(/\\n\\n+/).filter(p => p.trim());
+    document.getElementById('reviewBody').innerHTML = paragraphs.map(p => `<p>${p.trim()}</p>`).join('');
+
+    const dateLabel = r.review_date || '';
+    const pnlLabel = (r.day_pnl >= 0 ? '+' : '−') + '$' + Math.abs(r.day_pnl || 0).toFixed(2);
+    const cls = (r.day_pnl >= 0) ? 'positive' : '';
+    document.getElementById('reviewMeta').innerHTML =
+      `${dateLabel}  ·  ${r.n_closed || 0} closed trades  ·  Day P&L <span class="${cls}">${pnlLabel}</span>`;
+  } catch (e) { console.error('review', e); }
+}
+
 async function refreshAll() {
   try {
     renderSessions();
     await Promise.all([
       refreshStatus(), refreshEquity(), refreshScoreboard(),
       refreshPositions(), refreshDecisions(), refreshSkips(), refreshTrades(),
-      refreshBrief(),
+      refreshBrief(), refreshReview(),
     ]);
   } catch (e) { console.error(e); }
 }
