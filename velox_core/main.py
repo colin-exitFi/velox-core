@@ -21,7 +21,7 @@ import pytz
 from loguru import logger
 
 from velox_core import (
-    broker, config, consensus, market_brief, ratchet, review,
+    broker, config, consensus, game_film, market_brief, ratchet, review,
     scanner, sizing, state,
 )
 from velox_core.universe import UNIVERSE
@@ -388,6 +388,27 @@ async def _tick():
             logger.error(f"Daily review error: {e}")
             state.audit("daily_review_error", "error", str(e))
         _executed_today.add(review_key)
+
+    # 3b. Game film — fires 10 min after daily review with the day's data already in.
+    gf_dt = ET.localize(
+        datetime.combine(
+            now.date(),
+            dtime(config.DAILY_REVIEW_HOUR_ET, config.DAILY_REVIEW_MIN_ET + 10),
+        )
+    )
+    gf_key = f"{now.date().isoformat()}_game_film"
+    if (
+        now >= gf_dt
+        and gf_key not in _executed_today
+        and now.weekday() < 5
+    ):
+        try:
+            logger.info("🎬 Computing game film…")
+            game_film.write_game_film()
+        except Exception as e:
+            logger.error(f"Game film error: {e}")
+            state.audit("game_film_error", "error", str(e))
+        _executed_today.add(gf_key)
 
     # 4. Ratchet on open positions (every tick during market hours)
     if await broker.is_market_open():
