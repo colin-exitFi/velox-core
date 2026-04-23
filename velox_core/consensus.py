@@ -24,7 +24,8 @@ from loguru import logger
 from velox_core import config
 
 
-_TIMEOUT = httpx.Timeout(45.0, connect=10.0)
+# 145-ticker prompts on Opus 4.7 can take 45-90s. Budget generously.
+_TIMEOUT = httpx.Timeout(150.0, connect=10.0)
 _VALID_ACTIONS = {"BUY", "SHORT", "HOLD", "EXIT"}
 
 
