@@ -232,6 +232,7 @@ async def run_consensus(
     equity: float,
     max_positions: int,
     market_brief: str = "",
+    scanner_details: Optional[List[Dict]] = None,
 ) -> Dict[str, Dict]:
     """Call both models, return per-symbol consensus dict.
 
@@ -247,6 +248,22 @@ async def run_consensus(
 
     now = datetime.now().strftime("%Y-%m-%d %H:%M")
     universe_table = _build_universe_table(snapshots)
+    # Append a callout for scanner-added names so models weight catalysts harder.
+    if scanner_details:
+        scanner_lines = []
+        for d in scanner_details:
+            sym = d.get("symbol", "")
+            src = d.get("source", "")
+            extras = []
+            if "pct_change" in d: extras.append(f"{d['pct_change']:+.2f}%")
+            if "volume" in d:     extras.append(f"vol={d['volume']:,}")
+            scanner_lines.append(f"  {sym:<6}  source={src}  {' '.join(extras)}")
+        universe_table = (
+            universe_table
+            + "\n\nDYNAMIC SCANNER ADDITIONS today (these are NOT in the anchor list — "
+            "they were added because of unusual flow/movement TODAY):\n"
+            + "\n".join(scanner_lines)
+        )
     n = len(snapshots)
     prompt = PROMPT_TEMPLATE.format(
         n=n,

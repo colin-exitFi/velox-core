@@ -20,19 +20,33 @@ from typing import Dict, List, Optional, Tuple
 import pytz
 from loguru import logger
 
-from velox_core import broker, config, consensus, market_brief, ratchet, review, sizing, state
+from velox_core import (
+    broker, config, consensus, market_brief, ratchet, review,
+    scanner, sizing, state,
+)
 from velox_core.universe import UNIVERSE
 
 
 ET = pytz.timezone("America/New_York")
 
 # Session schedule (ET, 24h). Tuple of (HH, MM, label).
+# Dense cadence: every 30 min during regular hours = 14 sessions/day. Bot
+# is always near "the next session" so it doesn't miss a fast move by hours.
 SESSIONS: List[Tuple[int, int, str]] = [
     (9, 35,  "open"),
-    (11, 0,  "mid_morning"),
-    (13, 30, "lunch_reversal"),
+    (10, 0,  "10:00"),
+    (10, 30, "10:30"),
+    (11, 0,  "11:00"),
+    (11, 30, "11:30"),
+    (12, 0,  "noon"),
+    (12, 30, "12:30"),
+    (13, 0,  "13:00"),
+    (13, 30, "13:30"),
+    (14, 0,  "14:00"),
+    (14, 30, "14:30"),
     (15, 0,  "power_hour"),
-    (15, 45, "pre_close"),
+    (15, 30, "15:30"),
+    (15, 50, "pre_close"),
 ]
 
 EOD_FLATTEN = (15, 55)  # close all positions at 3:55 PM ET
@@ -85,7 +99,12 @@ async def run_session(label: str):
         return
 
     equity = await broker.get_equity()
-    snaps = await broker.get_snapshots(UNIVERSE)
+
+    # Combined universe: fixed anchor list + today's dynamic scanner overlay.
+    # First session of the day refreshes the scanner; subsequent sessions reuse cache.
+    scan = await scanner.daily_scan(target_count=20)
+    full_universe = list(UNIVERSE) + list(scan["tickers"])
+    snaps = await broker.get_snapshots(full_universe)
     if not snaps:
         logger.error("No snapshots returned — abort session")
         state.audit("session_failed", "error", "no_snapshots")
@@ -97,12 +116,13 @@ async def run_session(label: str):
 
     session_id = state.start_session(label, equity)
     logger.info(
-        f"Session #{session_id} | equity=${equity:,.2f} | open_positions={n_open} | "
-        f"snapshots={len(snaps)}"
+        f"Session #{session_id} | {label} | equity=${equity:,.2f} | "
+        f"universe={len(full_universe)} ({len(UNIVERSE)} anchor + "
+        f"{len(scan['tickers'])} scanned) | open={n_open} snapshots={len(snaps)}"
     )
 
     # 1. Pull market context from Perplexity FIRST so both voters see the same world.
-    brief = await market_brief.get_market_brief(UNIVERSE, label)
+    brief = await market_brief.get_market_brief(full_universe, label)
     state.record_market_brief(
         session_id=session_id,
         session_label=label,
@@ -111,7 +131,7 @@ async def run_session(label: str):
         error=brief.error,
     )
 
-    # 2. Two voters now decide with context.
+    # 2. Two voters now decide with context — both the brief AND the scanner overlay.
     votes_by_symbol = await consensus.run_consensus(
         snapshots=snaps,
         open_positions=open_symbols,
@@ -119,6 +139,7 @@ async def run_session(label: str):
         equity=equity,
         max_positions=config.MAX_CONCURRENT_POSITIONS,
         market_brief=brief.text,
+        scanner_details=scan["details"],
     )
 
     opened = 0
